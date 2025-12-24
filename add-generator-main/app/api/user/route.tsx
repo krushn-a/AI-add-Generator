@@ -1,31 +1,29 @@
-
 import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
-import { db } from "@/configs/db";
+import { collection, query, where, getDocs, addDoc, getDoc } from "firebase/firestore";
+import { db } from '@/configs/firebaseConfig'; // Firebase
 import { usersTable } from "@/configs/schema";
 
 export async function POST(req: NextRequest) {
     const { userEmail, userName } = await req.json();
 
-    // try {
-    const result = await db.select().from(usersTable)
-        .where(eq(usersTable.email, userEmail));
+    try {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('email', '==', userEmail));
+        const querySnapshot = await getDocs(q);
 
-    if (result?.length == 0) {
-
-        const result: any = await db.insert(usersTable).values({
-            name: userName,
-            email: userEmail,
-            credits: 0,
-            // @ts-ignore
-        }).returning(usersTable);
-
-        return NextResponse.json(result[0]);
+        if (querySnapshot.empty) {
+            const docRef = await addDoc(usersRef, {
+                name: userName,
+                email: userEmail,
+                credits: 0,
+            });
+            
+            const newDoc = await getDoc(docRef);
+            return NextResponse.json(newDoc.data());
+        }
+        
+        return NextResponse.json(querySnapshot.docs[0].data());
+    } catch (e) {
+        return NextResponse.json({ error: String(e) }, { status: 500 });
     }
-    return NextResponse.json(result[0]);
-
-
-    // } catch (e) {
-    //     return NextResponse.json(e)
-    // }
 }
